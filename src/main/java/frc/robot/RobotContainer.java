@@ -1,251 +1,167 @@
-// Copyright 2021-2024 FRC 6328
-// http://github.com/Mechanical-Advantage
-//
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// version 3 as published by the Free Software Foundation or
-// available in the root directory of this project.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
+// Copyright (c) FIRST and other WPILib contributors.
+// Open Source Software; you can modify and/or share it under the terms of
+// the WPILib BSD license file in the root directory of this project.
 
 package frc.robot;
 
-import com.pathplanner.lib.auto.AutoBuilder;
-import com.pathplanner.lib.events.EventTrigger;
-
-import edu.wpi.first.cameraserver.CameraServer;
-import edu.wpi.first.cscore.UsbCamera;
+import frc.robot.Constants.OperatorConstants;
+import frc.robot.commands.Autos;
+import frc.robot.commands.ExampleCommand;
+import frc.robot.subsystems.ExampleSubsystem;
+import frc.robot.subsystems.Telemetry;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
+import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.system.plant.DCMotor;
+import edu.wpi.first.wpilibj.Alert;
+import edu.wpi.first.wpilibj.Alert.AlertType;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.GenericHID;
+import edu.wpi.first.wpilibj.GenericHID.RumbleType;
 import edu.wpi.first.wpilibj.XboxController;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
-import frc.robot.commands.DriveCommands;
-import frc.robot.commands.allStop;
-import frc.robot.commands.Arm.approachPosition;
-import frc.robot.commands.Arm.armBreakModeToggle;
-import frc.robot.commands.Arm.armIntakeAlgae;
-import frc.robot.commands.Arm.armIntakeCoral;
-import frc.robot.commands.Arm.armPlaceCoral;
-import frc.robot.commands.Arm.armRemoveAlgae;
-import frc.robot.commands.Arm.latchPosition;
-import frc.robot.commands.Arm.liftPosition;
-import frc.robot.commands.Arm.lowerArm;
-import frc.robot.commands.Arm.raiseArm;
-import frc.robot.commands.Latch.closeLatch;
-import frc.robot.commands.Latch.openLatch;
-import frc.robot.commands.Rollers.openRollers;
-import frc.robot.commands.Rollers.spitAlgae;
-import frc.robot.commands.Rollers.spitCoral;
-import frc.robot.commands.Rollers.closeRollers;
-import frc.robot.commands.Rollers.getAlgae;
-import frc.robot.commands.Rollers.getCoral;
-import frc.robot.subsystems.drive.Drive;
-import frc.robot.subsystems.Arm.Arm;
-import frc.robot.subsystems.Latch.Latch;
-import frc.robot.subsystems.drive.GyroIO;
-import frc.robot.subsystems.drive.GyroIONavX;
-import frc.robot.subsystems.drive.ModuleIO;
-import frc.robot.subsystems.drive.ModuleIOSim;
-import frc.robot.subsystems.drive.ModuleIOSpark;
-import frc.robot.subsystems.led.patterns.SimpleLedPattern;
-
+import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
+import java.util.Optional;
+import java.util.function.*;
+import frc.robot.Constants;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
-import frc.robot.subsystems.Rollers.Rollers;
+import org.littletonrobotics.junction.networktables.LoggedNetworkNumber;
+import frc.robot.subsystems.Drive.DriveConstants;
+import frc.robot.subsystems.Drive.DriveConstants.TunerSwerveDrivetrain;
+import edu.wpi.first.wpilibj.XboxController;
+import java.util.function.DoubleSupplier;
+import com.ctre.phoenix6.swerve.SwerveDrivetrainConstants;
+import com.ctre.phoenix6.swerve.SwerveModuleConstants;
+import static edu.wpi.first.units.Units.*;
+//--
+import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
+import com.ctre.phoenix6.swerve.SwerveRequest;
+import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.commands.FollowPathCommand;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
+import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
+import frc.robot.subsystems.Drive.CommandSwerveDrivetrain;
+import frc.robot.subsystems.Drive.DriveConstants.TunerSwerveDrivetrain;
+
 /**
  * This class is where the bulk of the robot should be declared. Since Command-based is a
  * "declarative" paradigm, very little robot logic should actually be handled in the {@link Robot}
  * periodic methods (other than the scheduler calls). Instead, the structure of the robot (including
- * subsystems, commands, and button mappings) should be declared here.
+ * subsystems, commands, and trigger mappings) should be declared here.
  */
 public class RobotContainer {
-  // Subsystems
-  private final Drive drive;
-  private final Latch latch;
-  private final Rollers rollers;
-  private final Arm arm;
+  // The robot's subsystems and commands are defined here...
+  private final ExampleSubsystem m_exampleSubsystem = new ExampleSubsystem();
 
 
+  // Replace with CommandPS4Controller or CommandJoystick if needed
+  private final CommandXboxController m_driverController =
+      new CommandXboxController(OperatorConstants.kDriverControllerPort);
+      private final CommandXboxController m_CopilotController =
+      new CommandXboxController(OperatorConstants.kCopolotControllerPort);
+    private double MaxSpeed = DriveConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
+    private double MaxAngularRate = RotationsPerSecond.of(0.75).in(RadiansPerSecond); // 3/4 of a rotation per second max angular velocity
+
+    /* Setting up bindings for necessary control of the swerve drive platform */
+    private final SwerveRequest.FieldCentric drive = new SwerveRequest.FieldCentric()
+            .withDeadband(MaxSpeed * 0.1).withRotationalDeadband(MaxAngularRate * 0.1) // Add a 10% deadband
+            .withDriveRequestType(DriveRequestType.OpenLoopVoltage); // Use open-loop control for drive motors
+    private final SwerveRequest.SwerveDriveBrake brake = new SwerveRequest.SwerveDriveBrake();
+    private final SwerveRequest.PointWheelsAt point = new SwerveRequest.PointWheelsAt();
+    private final SwerveRequest.RobotCentric forwardStraight = new SwerveRequest.RobotCentric()
+            .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
+
+    private final Telemetry logger = new Telemetry(MaxSpeed);
 
 
-  // Controllers
-  private final CommandXboxController driveController = new CommandXboxController(0);
-  private final CommandXboxController coPilotController = new CommandXboxController(1);
+    public final CommandSwerveDrivetrain drivetrain = DriveConstants.createDrivetrain();
 
-
-  // Dashboard inputs
-  private final LoggedDashboardChooser<Command> autoChooser;
+    /* Path follower */
+    private final SendableChooser<Command> autoChooser;
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
-    //CameraServer.startAutomaticCapture();
-    //CameraServer.startAutomaticCapture();
-    UsbCamera camera = CameraServer.startAutomaticCapture();
-      camera.setFPS(15);
-    UsbCamera camera2 = CameraServer.startAutomaticCapture();
-      camera2.setFPS(15);
-        
+    // Configure the trigger bindings
+    autoChooser = AutoBuilder.buildAutoChooser("Tests");
+    SmartDashboard.putData("Auto Mode", autoChooser);
 
-    switch (Constants.currentMode) {
-      case REAL:
-        // Real robot, instantiate hardware IO implementations
-        latch = Latch.createReal();
-        rollers = Rollers.createReal();
-        arm = Arm.createReal();
-        drive =
-            new Drive(
-                // new GyroIOPigeon2(), FWM changed from pigeon to NavX
-                new GyroIONavX(),
-                new ModuleIOSpark(0),
-                new ModuleIOSpark(1),
-                new ModuleIOSpark(2),
-                new ModuleIOSpark(3));
-        break;
+    configureBindings();
 
-      case SIM:
-        // Sim robot, instantiate physics sim IO implementations
-        latch = Latch.createSim();
-        rollers = Rollers.createSim();
-        arm = Arm.createSim();
-        drive =
-            new Drive(
-                new GyroIO() {},
-                new ModuleIOSim(),
-                new ModuleIOSim(),
-                new ModuleIOSim(),
-                new ModuleIOSim());
-        break;
-
-      default:
-        // Replayed robot, disable IO implementations
-        latch = Latch.createDummy();
-        rollers = Rollers.createDummy();
-        arm = Arm.createDummy();
-        drive =
-            new Drive(
-                new GyroIO() {},
-                new ModuleIO() {},
-                new ModuleIO() {},
-                new ModuleIO() {},
-                new ModuleIO() {});
-        break;
-    }
-
-    // Set up auto routines
-    autoChooser = new LoggedDashboardChooser<>("Auto Choices", AutoBuilder.buildAutoChooser());
-
-    // Set up SysId routines
-    autoChooser.addOption(
-        "Drive Wheel Radius Characterization", DriveCommands.wheelRadiusCharacterization(drive));
-    autoChooser.addOption(
-        "Drive Simple FF Characterization", DriveCommands.feedforwardCharacterization(drive));
-    autoChooser.addOption(
-        "Drive SysId (Quasistatic Forward)",
-        drive.sysIdQuasistatic(SysIdRoutine.Direction.kForward));
-    autoChooser.addOption(
-        "Drive SysId (Quasistatic Reverse)",
-        drive.sysIdQuasistatic(SysIdRoutine.Direction.kReverse));
-    autoChooser.addOption(
-        "Drive SysId (Dynamic Forward)", drive.sysIdDynamic(SysIdRoutine.Direction.kForward));
-    autoChooser.addOption(
-        "Drive SysId (Dynamic Reverse)", drive.sysIdDynamic(SysIdRoutine.Direction.kReverse));
-
-    new EventTrigger("spitCoral").onTrue(new spitCoral(rollers));
-    new EventTrigger("Arm Coral Angle").onTrue(new armPlaceCoral(arm));
-
-    // Configure the button bindings
-    configureButtonBindings();
+    // Warmup PathPlanner to avoid Java pauses
+    FollowPathCommand.warmupCommand().schedule();
   }
 
   /**
-   * Use this method to define your button->command mappings. Buttons can be created by
-   * instantiating a {@link GenericHID} or one of its subclasses ({@link
-   * edu.wpi.first.wpilibj.Joystick} or {@link XboxController}), and then passing it to a {@link
-   * edu.wpi.first.wpilibj2.command.button.JoystickButton}.
+   * Use this method to define your trigger->command mappings. Triggers can be created via the
+   * {@link Trigger#Trigger(java.util.function.BooleanSupplier)} constructor with an arbitrary
+   * predicate, or via the named factories in {@link
+   * edu.wpi.first.wpilibj2.command.button.CommandGenericHID}'s subclasses for {@link
+   * CommandXboxController Xbox}/{@link edu.wpi.first.wpilibj2.command.button.CommandPS4Controller
+   * PS4} controllers or {@link edu.wpi.first.wpilibj2.command.button.CommandJoystick Flight
+   * joysticks}.
    */
+  private void configureBindings() {
+    // Schedule `ExampleCommand` when `exampleCondition` changes to `true`
+    new Trigger(m_exampleSubsystem::exampleCondition)
+        .onTrue(new ExampleCommand(m_exampleSubsystem));
+    // Schedule `exampleMethodCommand` when the Xbox controller's B button is pressed,
+    // cancelling on release.
+    m_driverController.b().whileTrue(m_exampleSubsystem.exampleMethodCommand());
 
-   //Pilot controller
-  private void configureButtonBindings() {
-    // Default command, normal field-relative drive
-    drive.setDefaultCommand(//changes speed of drive*
-        DriveCommands.joystickDrive(
-            drive,
-            () -> -driveController.getLeftY()*.8,
-            () -> -driveController.getLeftX()*.8,
-            () -> -driveController.getRightX()*.8));//Slowed it down FWM
-  
+        // Note that X is defined as forward according to WPILib convention,
+    // and Y is defined as to the left according to WPILib convention.
+    drivetrain.setDefaultCommand(
+      // Drivetrain will execute this command periodically
+      drivetrain.applyRequest(() ->
+          drive.withVelocityX(-m_driverController.getLeftY() * MaxSpeed) // Drive forward with negative Y (forward)
+              .withVelocityY(-m_driverController.getLeftX() * MaxSpeed) // Drive left with negative X (left)
+              .withRotationalRate(-m_driverController.getRightX() * MaxAngularRate) // Drive counterclockwise with negative X (left)
+      )
+  );
 
-    // Lock to 0° when A button is held
-    /*
-    driveController
-        .a()
-        .whileTrue(
-            DriveCommands.joystickDriveAtAngle(
-                drive,
-                () -> -driveController.getLeftY(),
-                () -> -driveController.getLeftX(),
-                () -> new Rotation2d()));
+  // Idle while the robot is disabled. This ensures the configured
+  // neutral mode is applied to the drive motors while disabled.
+  final var idle = new SwerveRequest.Idle();
+  RobotModeTriggers.disabled().whileTrue(
+      drivetrain.applyRequest(() -> idle).ignoringDisable(true)
+  );
 
-                */
-    // Switch to X pattern when X button is pressed
-    //driveController.x().onTrue(Commands.runOnce(drive::stopWithX, drive));
+  m_driverController.a().whileTrue(drivetrain.applyRequest(() -> brake));
+  m_driverController.b().whileTrue(drivetrain.applyRequest(() ->
+      point.withModuleDirection(new Rotation2d(-m_driverController.getLeftY(), -m_driverController.getLeftX()))
+  ));
 
-    // Reset gyro to 0° when B button is pressed
-    /* 
-    driveController
-        .b()
-        .onTrue(
-            Commands.runOnce(
-                    () ->
-                        drive.setPose(
-                            new Pose2d(drive.getPose().getTranslation(), new Rotation2d())),
-                    drive)
-                .ignoringDisable(true));
-                    }*/
+  m_driverController.pov(0).whileTrue(drivetrain.applyRequest(() ->
+      forwardStraight.withVelocityX(0.5).withVelocityY(0))
+  );
+  m_driverController.pov(180).whileTrue(drivetrain.applyRequest(() ->
+      forwardStraight.withVelocityX(-0.5).withVelocityY(0))
+  );
 
+  // Run SysId routines when holding back/start and X/Y.
+  // Note that each routine should be run exactly once in a single log.
+  m_driverController.back().and(m_driverController.y()).whileTrue(drivetrain.sysIdDynamic(Direction.kForward));
+  m_driverController.back().and(m_driverController.x()).whileTrue(drivetrain.sysIdDynamic(Direction.kReverse));
+  m_driverController.start().and(m_driverController.y()).whileTrue(drivetrain.sysIdQuasistatic(Direction.kForward));
+  m_driverController.start().and(m_driverController.x()).whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
 
-    //driveController.x().onTrue(new closeRollers(rollers));// remove driveController
-    //driveController.b().onTrue(new openRollers(rollers));// remove driveController
-    //Latch commands
+  // reset the field-centric heading on left bumper press
+  m_driverController.leftBumper().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));
 
-    // Pilot Controls
-    driveController.start().onTrue(new allStop(rollers,latch));//commands all stop 
-    //roller commands
-    driveController.rightBumper().onTrue(new getCoral(rollers));
-    driveController.rightTrigger().onTrue(new spitCoral(rollers));
-    driveController.leftBumper().onTrue(new getAlgae(rollers, arm));
-    driveController.leftTrigger().onTrue(new spitAlgae(rollers, arm));
-    //arm commands
-    driveController.a().onTrue(new armIntakeCoral(arm));
-    driveController.b().onTrue(new armPlaceCoral(arm));
-    driveController.x().onTrue(new armIntakeAlgae(arm));
-    driveController.y().onTrue(new armRemoveAlgae(arm));
-
-    // Co-Pilot Controls
-    coPilotController.start().onTrue(new allStop(rollers,latch));//commands all stop
-    //Manual Arm commands
-    coPilotController.rightBumper().onTrue(new raiseArm(arm));
-    coPilotController.leftBumper().onTrue(new lowerArm(arm));
-    //coPilotController.back().onTrue(new armBreakModeToggle(arm));
-    //Latch commands
-    coPilotController.a().onTrue(new approachPosition(arm));
-    coPilotController.b().onTrue(new latchPosition(arm));
-    coPilotController.y().onTrue(new liftPosition(arm));
-    coPilotController.leftTrigger().onTrue(new openLatch(latch));
-    coPilotController.rightTrigger().onTrue(new closeLatch(latch));
-    //Co-Pilot Joystick comamands
-     // Switch to X pattern when X button is pressed
-    coPilotController.x().onTrue(Commands.runOnce(drive::stopWithX, drive));
-
-    
+  drivetrain.registerTelemetry(logger::telemeterize);
   }
-
-
 
   /**
    * Use this to pass the autonomous command to the main {@link Robot} class.
@@ -253,6 +169,8 @@ public class RobotContainer {
    * @return the command to run in autonomous
    */
   public Command getAutonomousCommand() {
-    return autoChooser.get();
+    // An example command will be run in autonomous
+    // return Autos.exampleAuto(m_exampleSubsystem);
+    return autoChooser.getSelected();
   }
-}
+ }
